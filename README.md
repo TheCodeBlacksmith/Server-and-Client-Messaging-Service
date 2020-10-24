@@ -1,0 +1,2 @@
+# Server-and-Client-Messaging-Service
+This program is a server and client messaging project developed and tested in Python. The client and server utilized a variant of the TCP protocol with some customization as to how specifically the client sent messages to the server and how the server accessed, understood and executed various commands based on the client's request. The software allows for multiple clients and also can understand hashtags like those that are found in large scale messaging platforms
