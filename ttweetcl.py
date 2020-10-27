@@ -15,14 +15,24 @@ import argparse
 FORMAT = 'utf-8'
 MAX_DATA_SIZE = 150
 FILENAME = "Sample.txt"
-#SERVER = gethostbyname(gethostname()) # gets the host IP of current computer
-#SERVER = "127.0.0.1"
 
-MSG_CLIENT_TERMINATE = "CLIENT ALERT: [GENERAL] Client Terminated"
+MSG_CLIENT_CONNECT = "username legal, connection established."
+MSG_HASHTAG_OPERATION = "operation success"
+MSG_CLIENT_TERMINATE = "bye bye"
 
-ERR_LENGTH_EXCEED = "CLIENT ALERT: [ERROR] Max of 150 characters for message surpassed. Actual size given (bytes): "
-ERR_SERVER_CONNECT = "CLIENT ALERT: [ERROR] Server is not available for TTweet. Please connect to 127.0.0.1 when server is online."
-ERR_GENERAL = "CLIENT ALERT: [ERROR] Parameters are invalid"
+ERR_SERVER_IP_INVALID = "error: server ip invalid, connection refused."
+ERR_SERVER_PORT_INVALID = "error: server port invalid, connection refused."
+
+ERR_USERNAME_INVALID = "error: username has wrong format, connection refused."
+ERR_USERNAME_ILLEGAL = "username illegal, connection refused."
+
+ERR_PARAMETERS = "error: args should contain <ServerIP>   <ServerPort> <Username>"
+
+ERR_MSG_LENGTH_EXCEED = "message length illegal, connection refused."
+ERR_MSG_LENGTH_ILLEGAL = "message format illegal."
+
+ERR_HASHTAG_ILLEGAL = "hashtag illegal format, connection refused."
+# NOTE: Maximum hashtags reached: “operation failed: sub <hashtag> failed, already exists or exceeds 3 limitation” must be implemented in code
 
 
 def writeToFile(data):
@@ -84,8 +94,21 @@ class Client(object):
             writeToFile("Transmission Successfull...")
             exit(0)
             print("done")
-        except Exception: #NOTE: Python 3 : just--> except: DONE
-            print (ERR_SERVER_CONNECT)
+        except Exception:
+            
+                
+                if SERVER != "127.0.0.1":
+                    print(ERR_SERVER_IP_INVALID) 
+                elif PORT <= 80 or PORT > 65535:
+                    print(ERR_SERVER_PORT_INVALID)
+                else:
+                    connectRes = self.clientSocket.connect_ex(("127.0.0.1", 13000))
+                    if connectRes != 0:
+                        print("connection error, please check your server: Connection refused")
+                    else:
+                        print(ERR_SERVER_PORT_INVALID)
+                    self.clientSocket.close()
+                 
         
 
 '''
@@ -113,12 +136,11 @@ arguments = vars(parser.parse_args())
 UPLOAD MODE and DOWNLOAD MODE logic
 --------------------------------------------------------------------------------------------------------
 '''
-#NOTE: Python 3 : just--> if arguments["u"] and len(bytes(arguments["MSG"], FORMAT)) > MAX_DATA_SIZE: # DONE
 if arguments["u"] and len(bytes(arguments["MSG"], FORMAT)) > MAX_DATA_SIZE: 
     size = len(bytes(arguments["MSG"]).encode(FORMAT))
     
-    print (ERR_LENGTH_EXCEED, str(size))
-    writeToFile(ERR_LENGTH_EXCEED + "" + str(size))
+    print (ERR_MSG_LENGTH_EXCEED, str(size))
+    writeToFile(ERR_MSG_LENGTH_EXCEED + "" + str(size))
     
     print (MSG_CLIENT_TERMINATE)
     writeToFile(MSG_CLIENT_TERMINATE)
@@ -130,8 +152,8 @@ else:
     elif arguments["d"]: #CASE: download case is selected
         client = Client(arguments["ServerIP"],arguments["ServerPort"], "d" )
     else: #CASE: (redundancy) if neither case is selected and program arrives here
-        print (ERR_GENERAL)
-        writeToFile(ERR_GENERAL)
+        print (ERR_PARAMETERS)
+        writeToFile(ERR_PARAMETERS)
         
         print (MSG_CLIENT_TERMINATE)
         writeToFile(MSG_CLIENT_TERMINATE)

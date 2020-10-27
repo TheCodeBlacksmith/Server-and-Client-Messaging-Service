@@ -19,18 +19,31 @@ FILENAME = "Sample.txt" # name for text output file
 SERVER = "127.0.0.1" # set to local host
 LAST_MESSAGE = "Empty Message" # storage point of ast inputted message in server session
 
-MSG_SRV_CONNECT_ALERT = "SERVER ALERT [GENERAL] SERVER ON HAS INITIALIZED ON IP: "
-MSG_CONNECT_ALERT = "SERVER ALERT [CONNECTION] NEW CONNECTION OF CLIENT: "
+MSG_SRV_CONNECT_ALERT = "server listening at "
+MSG_CONNECT_ALERT = "server get connection!"
+# TODO: delete immedietlly below message ONLY once code is updated
 MSG_DISCONNECT_ALERT = "SERVER ALERT [CONNECTION] DISCONNECTION OF CLIENT: "
-MSG_RECEIVED = "SERVER ALERT [GENERAL] Message Received: "
-MSG_DISCONNECT = "SERVER ALERT [CONNECTION] SERVER HAS DISCONNECTED"
 
-ERR_SERVER_START = "SERVER ALERT [ERROR] SERVER COULD NOT BE STARTED ON IP: "
+# TODO: delete below message ONLY once message received statement is implemented in code 
+# e.g: server read: TweetMessage{username='cxworks', msg='null', hashTags='null', operation='init'}
+MSG_RECEIVED = "SERVER ALERT [GENERAL] Message Received: "
+
+# TODO: implement in code server write message
+# e.g: server write: TweetResponse{success=true, type='subscribe', error='null', tweetMsg='null', hashTags='null', sender='null', notification='null', usernames=0, historyMessages=0}
+ERR_SERVER_START = "server could not start at "
+# TODO: delete immedietlly below message ONLY once code is updated
 ERR_CLIENT_START = "SERVER ALERT [ERROR] COULD NOT START CLIENT: "
+# TODO: delete immedietlly below message ONLY once code is updated
 ERR_CLIENT_INPUT = "SERVER ALERT [ERROR] INPUT COULD NOT BE PROCESSED FORM CLIENT: "
 
 
 serverSocket = socket(AF_INET, SOCK_STREAM) # defines usage of IPv4 and TCP connection is being used
+
+def printServerStats(parameter_list):
+    """
+    Desc: Helper method that prints the number of active clients
+    """
+    print(" Total clients: ",  threading.activeCount() - 1)
 
 def clearFile():
     '''
@@ -62,9 +75,9 @@ def handler(connectionSocket, clientAddr):
     global MAX_DATA_SIZE
     global LAST_MESSAGE
 
-    print(MSG_CONNECT_ALERT, clientAddr, " Total: ",  threading.activeCount() - 1)
+    print(MSG_CONNECT_ALERT)
     num = threading.activeCount() - 1
-    writeToFile(MSG_CONNECT_ALERT + "" + str(clientAddr) + " Total: " +  str(num) )
+    writeToFile(MSG_CONNECT_ALERT)
 
     connected = True
     while connected:
@@ -98,17 +111,19 @@ def handler(connectionSocket, clientAddr):
         print( MSG_DISCONNECT_ALERT, clientAddr )
         writeToFile(MSG_DISCONNECT_ALERT + "" + str(clientAddr))
 
-def start_server():
+def start_server(PORT):
     '''
     Desc: Initializes server. This also includes clearing text output file.
     
+    Parameters: PORT = server port
+
     Note: the packet is a combination of the option designated the type of action
     (defined as "header") followed by the actual data
     '''
     clearFile() #NOTE: clear text output file each start of server
     serverSocket.listen() #NOTE: Python 3 : just--> serverSocket.listen() # DONE
-    print (MSG_SRV_CONNECT_ALERT, SERVER)
-    writeToFile(MSG_SRV_CONNECT_ALERT + "" + SERVER)
+    print (MSG_SRV_CONNECT_ALERT, PORT)
+    writeToFile(MSG_SRV_CONNECT_ALERT + "" + PORT)
     
     while True: 
         try:   
@@ -141,7 +156,7 @@ Server activation
 try:
     PORT = arguments["ServerPort"]
     serverSocket.bind((SERVER, PORT)) 
-    start_server()
+    start_server(PORT)
 except:
     print (ERR_SERVER_START, SERVER)
     writeToFile(ERR_SERVER_START + "" + SERVER)
