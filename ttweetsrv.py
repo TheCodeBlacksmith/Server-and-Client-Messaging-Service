@@ -39,100 +39,124 @@ ERR_CLIENT_INPUT = "SERVER ALERT [ERROR] INPUT COULD NOT BE PROCESSED FORM CLIEN
 
 serverSocket = socket(AF_INET, SOCK_STREAM) # defines usage of IPv4 and TCP connection is being used
 
-def printServerStats(parameter_list):
+# dictionary for all clients' information
+clients = {}
+usernames = []
+
+def broadcast(message, username = None):
     """
-    Desc: Helper method that prints the number of active clients
+    broadcast a message to all other active clients 
+    NOTE: the message should must be encoded in FORMAT before it broadcast is called!!!
     """
-    print(" Total clients: ",  threading.activeCount() - 1)
+    for client in clients:
+        client.send(message)
+ 
 
-def clearFile():
-    '''
-    Desc: Helper method to clear text file on each server start
-    '''
-    file = open(FILENAME,"w")
-    file.close()
+def receive_connections():
+    while True:
+        # Accept Connection
+        connectionSocket, clientAddr = serverSocket.accept()
 
-def writeToFile(data):
-    '''
-    Desc: Helper method to write to the sample file all text output
-    '''
-    with open(FILENAME, 'a') as f:
-        data += '\n'
-        f.write(data)
+        # Request And Store username
+        connectionSocket.send('!NICK!'.encode(FORMAT))
+        username = connectionSocket.recv(1024).decode(FORMAT)
 
-def handler(connectionSocket, clientAddr):
+        if username not in usernames:
+            connectionSocket.send('!GD_USR!'.encode(FORMAT))
+            usernames.append(username)
+            clients[connectionSocket] = {'username': username, 'msg': 'null', 'hashtags': 'null', 'operation': 'init'}
+            
+            print(MSG_CONNECT_ALERT)
+            print(clients[connectionSocket])
+            print(f"...for connection: {connectionSocket}")
+
+            # Start Handling Thread For Client
+            currThread = threading.Thread(target=handler, args=(connectionSocket, clientAddr)) # defines the handler as the method to deal with the connection
+            currThread.start()
+        else:
+            connectionSocket.send('!ERR_USR!'.encode(FORMAT))    
+
+def handler(client_connection_socket: socket, clientAddr):
     '''
     Desc: Maintains each client thread as it arrives to the server until termination. Based on the
     header information when reading the input form the client, the handler determines whether to
     upload or download a message and do subsequent actions inlcuding termination of the client upon
     completion of its task. 
 
-    Parameters: connectionSocket = client port, clientAddr = client address
+    Parameters: client_connection_socket = client port, clientAddr = client address
     
     Note: the packet is a combination of the option designated the type of action
     (defined as "header") followed by the actual data
     '''
-    global MAX_DATA_SIZE
-    global LAST_MESSAGE
 
-    print(MSG_CONNECT_ALERT)
-    num = threading.activeCount() - 1
-    writeToFile(MSG_CONNECT_ALERT)
+    # num = threading.activeCount() - 1
 
-    connected = True
-    while connected:
+    while True:
         try:
-            header, data = [str(i) for i in connectionSocket.recv(2048).decode(FORMAT).split('\n')]
-            #TEST: print(f"option: {header}, and data: {data}")
+            # message = client_connection_socket.recv(1024).decode(FORMAT)
+            username, cmd, message, hashtags= [str(i) for i in client_connection_socket.recv(2048).decode(FORMAT).split('\n')]
+            
+            # prepare and print out server description of action
+            if cmd == "tweet":
+                    hashtags = hashtags.replace(" ", "")
+                    hashtags_ls = list(set([str(tag) for tag in hashtags.split("#")]))
+                    print(f"server read: TweetMessage {{username='{username}', msg='{message}', hashTags='{hashtags}', operation='{cmd}'}}")
+                    to_send_message = f"{username}: {message} {hashtags.strip()}"
+                    broadcast(to_send_message.encode(FORMAT))
+                    print("finished")
+            
+            elif cmd == "subscribe":
+                print("WARNING: NOTHING CODED FOR THIS YET")
+            
+            elif cmd == "unsubscribe":
+                print("WARNING: NOTHING CODED FOR THIS YET")
+            
+            elif cmd == "gettweets":
+                print("WARNING: NOTHING CODED FOR THIS YET")
+            
+            elif cmd == "timeline":
+                print("WARNING: NOTHING CODED FOR THIS YET")
+            
+            elif cmd == "getusers":
+                print("WARNING: NOTHING CODED FOR THIS YET")
+            
+            elif cmd == "exit":
+                client_info = clients.pop(client_connection_socket)
+                client_connection_socket.close
+
+                usernames.pop(usernames.index(client_info["username"]))
+                #print(f"thread active:  {threading.activeCount() - 1}, number os users: {len(usernames)}")
+                broadcast(f'{client_info["username"]} left the chat!'.encode(FORMAT))
+                break
+            
         except:
-            if data == "":
-                LAST_MESSAGE = "Empty Message"
-                print(MSG_RECEIVED, data)
-                writeToFile(MSG_RECEIVED + "" + "Empty Message")
-                connected = False
-                break
-            else:
-                print( ERR_CLIENT_INPUT, clientAddr )
-                writeToFile(ERR_CLIENT_INPUT + "" + str(clientAddr))
-                connected = False
-                break
+            client_info = clients.pop(client_connection_socket)
+            client_connection_socket.close
 
-        if header == "u" and data:
-            LAST_MESSAGE = data
-            print( MSG_RECEIVED, data)
-            writeToFile(MSG_RECEIVED + "" + data)
-            connected = False
-
-        elif header == "d":
-            connectionSocket.sendall(str.encode(LAST_MESSAGE, FORMAT))
-            connected = False
-
-    if connected == False:
-        print( MSG_DISCONNECT_ALERT, clientAddr )
-        writeToFile(MSG_DISCONNECT_ALERT + "" + str(clientAddr))
+            usernames.pop(usernames.index(client_info["username"]))
+            #print(f"thread active:  {threading.activeCount() - 1}, number os users: {len(usernames)}")
+            broadcast(f'{client_info["username"]} left the chat!'.encode(FORMAT))
+            break
+       
+    print( MSG_DISCONNECT_ALERT, clientAddr )
 
 def start_server(PORT):
     '''
-    Desc: Initializes server. This also includes clearing text output file.
+    Desc: Initializes server.
     
     Parameters: PORT = server port
 
     Note: the packet is a combination of the option designated the type of action
     (defined as "header") followed by the actual data
     '''
-    clearFile() #NOTE: clear text output file each start of server
-    serverSocket.listen() #NOTE: Python 3 : just--> serverSocket.listen() # DONE
+    serverSocket.listen()
     print (MSG_SRV_CONNECT_ALERT, PORT)
-    writeToFile(MSG_SRV_CONNECT_ALERT + "" + PORT)
     
-    while True: 
-        try:   
-            connectionSocket, clientAddr = serverSocket.accept()
-        except:
-            print (ERR_CLIENT_START, clientAddr)
-            writeToFile(ERR_CLIENT_START + "" + str(clientAddr))
-        currThread = threading.Thread(target=handler, args=(connectionSocket, clientAddr)) # defines the handler as the method to deal with the connection
-        currThread.start()
+    while True:
+        # try:
+        receive_connections()   
+        # except:
+        # print (ERR_CLIENT_START, clientAddr)
  
 
 '''
@@ -153,14 +177,13 @@ arguments = vars(parser.parse_args())
 Server activation
 --------------------------------------------------------------------------------------------------------
 '''
-try:
-    PORT = arguments["ServerPort"]
-    serverSocket.bind((SERVER, PORT)) 
-    start_server(PORT)
-except:
-    print (ERR_SERVER_START, SERVER)
-    writeToFile(ERR_SERVER_START + "" + SERVER)
-    exit(0)
+# try:
+PORT = arguments["ServerPort"]
+serverSocket.bind((SERVER, PORT)) 
+start_server(PORT)
+# except:
+#     print (ERR_SERVER_START, SERVER)
+#     exit(0)
 
 
 exit(0) #NOTE: redundant, location never reached
