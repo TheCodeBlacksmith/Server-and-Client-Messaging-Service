@@ -11,6 +11,7 @@ from socket import *
 import threading
 import sys
 import argparse
+import time
 
 FORMAT = 'utf-8'
 MAX_DATA_SIZE = 150
@@ -36,9 +37,12 @@ ERR_HASHTAG_ILLEGAL = "hashtag illegal format, connection refused."
 # NOTE: Maximum hashtags reached: “operation failed: sub <hashtag> failed, already exists or exceeds 3 limitation” must be implemented in code
 
 class Client(object):
+    lock = threading.Lock()
     timeline_of_all_messages = []
+    subscribed_hashtags = []
     clientSocket = socket(AF_INET, SOCK_STREAM) # defines usage of IPv4 and TCP connection is being used
-    def data_validation(self, message = "", hashtags = [], version = 0, cmd = "Null"):
+    lock_for = "write"
+    def data_validation(self, message = "", hashtags = "", version = 0, cmd = "Null"):
         """
         validates all parts of the data (message and/or hashtags)
 
@@ -54,31 +58,46 @@ class Client(object):
         if version == 0 or version == 2:
             hashtags_ls = hashtags.split("#")
             hashtags_ls.pop(0) # NOTE: this pops of the extra "" whenever ther is a splitting of the #'s
-            print(f"checking hashtags = {hashtags_ls}")
+            
             # NOTE: limitation of 5 on the number of hashtag units for each data sent for tweet command
             if (len(hashtags_ls) > 5 or len(hashtags_ls) == 0) and cmd.strip() == "tweet":
-                print("waa 1")
-                print(ERR_MSG_FORMAT_ILLEGAL)
+                print(ERR_MSG_FORMAT_ILLEGAL + "\n")
                 return False
+            
             # NOTE: limitation of 1 on the number of hashtag units for each data sent for subscribe and unsubscribe commands
-            if len(hashtags_ls) > 1 and (cmd.strip() == "subscribe" or cmd.strip() == "unsubscribe"):
-                print("waa 2")
-                print(ERR_MSG_FORMAT_ILLEGAL)
+            if len(hashtags_ls) != 1 and (cmd.strip() == "subscribe" or cmd.strip() == "unsubscribe"):
+                print(ERR_MSG_FORMAT_ILLEGAL + "\n")
                 return False
+
+            if (any(hashtag in self.subscribed_hashtags for hashtag in hashtags_ls) and cmd.strip() == "subscribe") or (len(self.subscribed_hashtags) >= 3 and cmd.strip() == "subscribe"):
+                print(f"operation failed: sub {hashtags.strip()} failed, already exists or exceeds 3 limitation " + "\n")
+                return False
+            
+            # NOTE: for unsubscribe, nothing needs to happen if the hashtag is not subscribed to
+            if hashtags_ls[0] != 'ALL' and (not any(hashtag in self.subscribed_hashtags for hashtag in hashtags_ls) and cmd.strip() == "unsubscribe"):
+                return False
+
+            # NOTE: for unsubscribe, nothing needs to happen if the no hashtyags is  subscribed to and #ALL is invoked
+            if hashtags_ls[0] == 'ALL' and len(self.subscribed_hashtags) == 0 and cmd.strip() == "unsubscribe":
+                return False
+
+            if any(hashtag == "ALL" for hashtag in hashtags_ls) and cmd.strip() == "tweet":
+                # NOTE: while ' or hashtag == "ALL" ' will not be tested, it is not allowed according to instructions for tweet
+                print(ERR_HASHTAG_ILLEGAL + "\n")
+                return False
+
             #  check if any empty violate hashtags format (hastags cannot be "" or non-alphanumeric or greater in length then 15 (# is already removed))
-            if any(hashtag == "" or not (str(hashtag).isalpha() or str(hashtag).isalnum() or str(hashtag).isnumeric()) or len(hashtag) > 14 for hashtag in hashtags_ls):
-                
-                print(ERR_HASHTAG_ILLEGAL)
+            if any(hashtag == ""  or not (str(hashtag).isalpha() or str(hashtag).isalnum() or str(hashtag).isnumeric()) or len(hashtag) >= 15 for hashtag in hashtags_ls):
+                print(ERR_HASHTAG_ILLEGAL + "\n")
                 return False
         
         ## Validation of message
         if version == 0 or version == 1:
             if message == "":
-                print("waa 3")
-                print(ERR_MSG_FORMAT_ILLEGAL)
+                print(ERR_MSG_FORMAT_ILLEGAL + "\n")
                 return False
             if len(message) > 150:
-                print(ERR_MSG_LENGTH_EXCEED)
+                print(ERR_MSG_LENGTH_EXCEED + "\n")
                 return False
 
         return True
@@ -92,8 +111,8 @@ class Client(object):
         TODO: delete unnesscary username validation code as it is implemented later below
 
         """
-        print(f"receive start and threads are: {threading.activeCount()}")
-        while True and threading.activeCount() >= 2:
+        
+        while True:
             try:
                 # Receive Message From Server
                 # If '!NICK!' Send Username
@@ -101,16 +120,23 @@ class Client(object):
                 if message == '!NICK!':
                     self.clientSocket.send(self.username.encode(FORMAT))
                 elif message == '!ERR_USR!':
-                    print(ERR_USERNAME_ILLEGAL)
+                    print(ERR_USERNAME_ILLEGAL + "\n")
                     self.clientSocket.close()
                     exit(0)
                     break
+                elif '!E_TWT_USR!' in  message:
+                    with self.lock:
+                        print(message.replace('!E_TWT_USR!', ""))
+                        self.lock_for = "write"
                 else:
-                    self.timeline_of_all_messages.append(message)
-                    print(message)
+                    if message[-3:] == '###': #CASE: getusers info requested divert message to special variable
+                        with self.lock:
+                            print(message.replace('###', ''))
+                            self.lock_for = "write"
+                    else:
+                        self.timeline_of_all_messages.append(message)
             except Exception:
                 # Close Connection When Error
-                # print("An error occured!")
                 self.clientSocket.close()
                 break
 
@@ -121,70 +147,111 @@ class Client(object):
         """
         cmd = ""
         message = ""
-        print(f"write start and threads are: {threading.activeCount()}")
-        while True and threading.activeCount() >= 2:
+
+        while True:
             try:
-                full_msg = input(f'user {self.username} stdin command: ')
-                
-                ls = full_msg.split(" ", 1)
-                if len(ls) > 1:
-                    cmd, data = ls[0], ls[1]
-                    print(f"cmd = {cmd}, data = {data}")
-                    cmd = cmd.strip()
-                    data = data.strip()
+                if self.lock_for != "read":
+                    with self.lock:
+                        full_msg = input(f'user {self.username} stdin command: ')
                     
-                    # CASE: tweet COMMAND
-                    if cmd == "tweet":
-                        ls = data.split('"')
-                        print(f"ls = {ls}")
-                        if len(ls) != 3: # NOTE: should be ['', 'hello', ' #yo'] for ex.
-                            print("waa 4")
-                            print(ERR_MSG_FORMAT_ILLEGAL)
-                            continue
-                        message = ls[1]
-                        hashtags = ls[2] #NOTE: hashtags will be split on the server side 
-                        hashtags = hashtags.strip()
-                        # if validation of data fails return to checing for new input
-                        if not self.data_validation(message, hashtags, 0, cmd.strip()):
-                            continue
+                    ls = full_msg.split(" ", 1)
+                    if len(ls) > 1:
+                        cmd, data = ls[0], ls[1]
+                        cmd = cmd.strip()
+                        data = data.strip()
+                        
+                        # CASE: tweet COMMAND
+                        if cmd == "tweet":
+                            ls = data.split('"')
+                            if len(ls) != 3: # NOTE: should be ['', 'hello', ' #yo'] for ex.
+                                print(ERR_MSG_FORMAT_ILLEGAL + "\n")
+                                continue
+                            message = ls[1]
+                            hashtags = ls[2] #NOTE: hashtags will be split on the server side 
+                            hashtags = hashtags.strip()
+                            # if validation of data fails return to checing for new input
+                            if not self.data_validation(message, hashtags, 0, cmd.strip()):
+                                continue
 
-                        print(f"SUCCESS: cmd = {cmd}, message = {message}, hashtags = {hashtags}")
-                        self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+                            self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+                            print("") #skip line requirement
 
-                    elif cmd == "subscribe":
-                        pass
-                    elif cmd == "unsubscribe":
-                        pass
-                    elif cmd == "gettweets":
-                        pass
+                        elif cmd == "subscribe":
+                            message = " "
+                            hashtags = data
+                            
+                            if not self.data_validation(message, hashtags, 2, cmd.strip()):
+                                continue
+
+                            print(MSG_HASHTAG_OPERATION + "\n")
+                            
+                            hashtags_ls = hashtags.split('#')
+                            self.subscribed_hashtags.append(hashtags_ls[1])
+                            self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+
+                        elif cmd == "unsubscribe":
+                            message = " "
+                            hashtags = data
+                            
+                            if not self.data_validation(message, hashtags, 2, cmd.strip()):
+                                continue
+
+                            print(MSG_HASHTAG_OPERATION + "\n") 
+                            
+                            hashtags_ls = hashtags.split('#')
+                            if hashtags_ls[1] == 'ALL':
+                                self.subscribed_hashtags = []
+                            else:
+                                self.subscribed_hashtags.remove(hashtags_ls[1])
+                            
+                            self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+
+                        elif cmd == "gettweets":
+                            message = data
+                            hashtags = "None"
+
+                            if not self.data_validation(message, hashtags, 1, cmd.strip()):
+                                continue
+
+                            self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+                            self.lock_for = "read"
+
+                        else:
+                            print(ERR_MSG_FORMAT_ILLEGAL + "\n")
+                            continue                    
                     else:
-                        print("waa 5")
-                        print(ERR_MSG_FORMAT_ILLEGAL)
-                        continue                    
-                else:
-                    if full_msg.strip() == "timeline":
-                        pass
-                    elif full_msg.strip() == "getusers":
-                        pass
-                    
-                    # CASE: exit COMMAND
-                    elif full_msg.strip() == 'exit':
-                        cmd = "exit"
-                        message = "None"
-                        # self.clientSocket.send([self.username, cmd, message].encode(FORMAT))
-                        self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message]), FORMAT)) 
-                        print(MSG_CLIENT_TERMINATE)
-                        self.clientSocket.close() 
-                        break
-                    # CASE: no valid command passed
-                    else:
-                        print("waa 6")
-                        print(ERR_MSG_FORMAT_ILLEGAL)
-                        continue
+                        if full_msg.strip() == "timeline":
+                            for received_msg in self.timeline_of_all_messages:
+                                print(received_msg)
+                            print("") # skip a line based on formatting in instructions
+                        
+                        elif full_msg.strip() == "getusers":
+                            cmd = "getusers"
+                            message = "None"
+                            hashtags = "None"
+                            self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+                            self.lock_for = "read"
+                        
+                        # CASE: exit COMMAND
+                        elif full_msg.strip() == 'exit':
+                            cmd = "exit"
+                            message = "None"
+                            hashtags = "None"
+                            #self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message]), FORMAT)) 
+                            self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
+
+                            print(MSG_CLIENT_TERMINATE)
+                            self.clientSocket.close() 
+                            break
+                        # CASE: no valid command passed
+                        else:
+                            print(ERR_MSG_FORMAT_ILLEGAL + "\n")
+                            continue
 
             except Exception:
-                 self.clientSocket.close()
-                 break         
+                print(MSG_CLIENT_TERMINATE)
+                self.clientSocket.close()
+                break         
 
     def __init__(self, SERVER, PORT, username):
         '''
@@ -199,7 +266,6 @@ class Client(object):
         self.username = username
         # CASE: new client is trying to log in
         try:
-            print(f"got username = {self.username}")
             self.clientSocket.connect((SERVER, PORT))
             
             message = self.clientSocket.recv(1024).decode(FORMAT)
@@ -210,12 +276,13 @@ class Client(object):
             message = self.clientSocket.recv(1024).decode(FORMAT)
             # CASE: Server rejects username due to it already existing
             if message == '!ERR_USR!':
-                print(ERR_USERNAME_ILLEGAL)
+                print(ERR_USERNAME_ILLEGAL + "\n")
                 self.clientSocket.close()
                 exit(0)
             # CASE: Server accepts username
             elif message == "!GD_USR!":
-                print(f"before any start and threads are: {threading.activeCount()}")
+                print(MSG_CLIENT_CONNECT + "\n")
+                
                 # Starting Threads For Listening And Writing
                 receive_thread = threading.Thread(target=self.receive)
                 receive_thread.start()
@@ -226,14 +293,6 @@ class Client(object):
                 
                 exit(0)
 
-            
-            
-            
-            
-            #self.clientSocket.close()
-            #print ("Transmission Successfull...")
-            
-            #exit(0)
         except Exception:
             # Exception handles invalid SERVER and/or PORT
             if SERVER != "127.0.0.1":
@@ -246,13 +305,8 @@ class Client(object):
                     print(ERR_SERVER_NO_CONNECTION)
                 else:
                     print(ERR_SERVER_PORT_INVALID)
-                self.clientSocket.close()
-        
-        # CASE: tweet command being launched
-        
+                self.clientSocket.close()        
                  
-        
-
 '''
 --------------------------------------------------------------------------------------------------------
 Command line interface implementation & processing
