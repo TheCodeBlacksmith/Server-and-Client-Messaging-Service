@@ -12,6 +12,7 @@ import threading
 import sys
 import argparse
 import time
+import select
 
 FORMAT = 'utf-8'
 MAX_DATA_SIZE = 150
@@ -134,7 +135,37 @@ class Client(object):
                             print(message.replace('###', ''))
                             self.lock_for = "write"
                     else:
-                        self.timeline_of_all_messages.append(message)
+                        if '##!NO_MSG!##' not in message:
+                            cus_message = message
+                            cus_message += '\n'
+                            
+                            if message.find(self.username) != 0:
+                                cus_message = '\n' + cus_message + f'\nuser {self.username} stdin command: '
+                            
+                            self.lock_for = "read"
+                            with self.lock:
+                                if message.find(self.username) != 0:
+                                    print(cus_message, end = "")
+                                else:
+                                    print(cus_message)
+                                self.timeline_of_all_messages.append(message)
+                                self.lock_for = "write"
+                            #-------or---------------------------------
+                            # if self.lock_for == "read":
+                            #     with self.lock:
+                            #         print("case 1", end = " ")
+                            #         print(message, end = " ")
+                            #         self.timeline_of_all_messages.append(message)
+                            #         self.lock_for = "write"
+                            # else: # CASE: valid input received but not in lock
+                            #     print("case 2", end= " ")
+                            #     print(message, end = " ")
+                            #     self.lock_for = "write"
+                            #-------or---------------------------------
+                        else: # CASE: no valid input received
+                            # print('##!NO_MSG!## ', end =" ")
+                            # print("case 3" , end= " ")
+                            self.lock_for = "write"
             except Exception:
                 # Close Connection When Error
                 self.clientSocket.close()
@@ -147,13 +178,12 @@ class Client(object):
         """
         cmd = ""
         message = ""
-
+        
         while True:
             try:
                 if self.lock_for != "read":
-                    with self.lock:
-                        full_msg = input(f'user {self.username} stdin command: ')
-                    
+                    # with self.lock:
+                    full_msg = input(f'user {self.username} stdin command: ')
                     ls = full_msg.split(" ", 1)
                     if len(ls) > 1:
                         cmd, data = ls[0], ls[1]
@@ -174,7 +204,8 @@ class Client(object):
                                 continue
 
                             self.clientSocket.sendall(str.encode("\n".join([self.username, cmd, message, hashtags]), FORMAT))
-                            print("") #skip line requirement
+                            # print("") #skip line requirement
+                            self.lock_for = "read"
 
                         elif cmd == "subscribe":
                             message = " "
@@ -217,8 +248,11 @@ class Client(object):
                             self.lock_for = "read"
 
                         else:
-                            print(ERR_MSG_FORMAT_ILLEGAL + "\n")
-                            continue                    
+                            if full_msg != "":
+                                print(ERR_MSG_FORMAT_ILLEGAL + "\n")
+                                continue
+                            else:
+                                continue                    
                     else:
                         if full_msg.strip() == "timeline":
                             for received_msg in self.timeline_of_all_messages:
@@ -245,9 +279,11 @@ class Client(object):
                             break
                         # CASE: no valid command passed
                         else:
-                            print(ERR_MSG_FORMAT_ILLEGAL + "\n")
-                            continue
-
+                            if full_msg != "":
+                                print(ERR_MSG_FORMAT_ILLEGAL + "\n")
+                                continue
+                            else:
+                                continue  
             except Exception:
                 print(MSG_CLIENT_TERMINATE)
                 self.clientSocket.close()

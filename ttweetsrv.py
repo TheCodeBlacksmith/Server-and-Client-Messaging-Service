@@ -83,8 +83,9 @@ def broadcast(message, hashtags_ls = None, version = 0, username = None):
             if "ALL" in clients[client]['hashTags'] or any(e in hashtags_ls for e in clients[client]['hashTags']):
                 # print(f"sending message: {str(message)} to: {clients[client]['username']}") #TEST
                 client.send(message)
-            # else:
-            #     client.send("")
+            else: #sends messages that nothing of value is coming your way (NOTE: required to prevent hanging)
+                print(f"sending bad message to: {clients[client]['username']}")
+                client.send("##!NO_MSG!##".encode(FORMAT))
     
     #CASE: special braodcast situation called (getusers or gettweets)
     elif version == 1:
@@ -153,7 +154,7 @@ def handler(client_connection_socket: socket, clientAddr):
                 clients[tweeting_client]['msg'].append(to_send_message)
 
                 broadcast(to_send_message.encode(FORMAT), hashtags_ls)
-                # print("finished") #TEST
+                
             
             elif cmd == "subscribe":
                 hashtags = hashtags.replace(" ", "")
