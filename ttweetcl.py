@@ -16,7 +16,7 @@ import select
 
 FORMAT = 'utf-8'
 MAX_DATA_SIZE = 150
-FILENAME = "Sample.txt"
+FILENAME = "Sample.txt" 
 
 MSG_CLIENT_CONNECT = "username legal, connection established."
 MSG_HASHTAG_OPERATION = "operation success"

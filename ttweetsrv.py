@@ -19,7 +19,7 @@ FILENAME = "Sample.txt" # name for text output file
 SERVER = "127.0.0.1" # set to local host
 LAST_MESSAGE = "Empty Message" # storage point of ast inputted message in server session
 
-MSG_SRV_CONNECT_ALERT = "server listening at "
+MSG_SRV_CONNECT_ALERT = "server listening at"
 MSG_CONNECT_ALERT = "server get connection!"
 # TODO: delete immedietlly below message ONLY once code is updated
 MSG_DISCONNECT_ALERT = "SERVER ALERT [CONNECTION] DISCONNECTION OF CLIENT: "
