@@ -31,8 +31,8 @@ CITATIONS:
 INCLUDED FILES:
 
  * README - basic information for program execution
- * ttweetcl.py - client-side python source code file
- * ttweetsrv.py - server-side python source code file
+ * ttweetcli.py - client-side python source code file
+ * ttweetser.py - server-side python source code file
  
 #----------------------------------------------------------------------------------
 IMPORTED Python PACKAGES:
@@ -86,6 +86,7 @@ BUGS / LIMITATIONS / NOTES:
 
 - Note: If the user submits nothing and simply presses the Enter key it will move to the next line and prompt for new input.
 - Note: Certain commands will paste output (or nothing depending on circumstance) and skip a line before prompting for new input.
+- LIMITATIONS: This application does not work due to OS specific code on Unix based machines.
 - Note: This software was built and tested on Python version 3.8.3 64-bit Windows x86.
 
 #----------------------------------------------------------------------------------
