@@ -1,16 +1,17 @@
 # Server-and-Client-Messaging-Service
 
 # Description
+
 This program is a server and client messaging project developed and tested in Python. The client and server utilized a variant of the TCP protocol with some customization as to how specifically the client sent messages to the server and how the server accessed, understood and executed various commands based on the client's request. The software allows for multiple clients and also can understand hashtags like those that are found in large scale messaging platforms
 
-# ----------------------------------------------------------------------------------
+
 # Included Files:
 
  * README.md - basic information for program execution
  * ttweetcl.py - client-side python source code file
  * ttweetsrv.py - server-side python source code file
  
-# ----------------------------------------------------------------------------------
+
 # Details:
 
 This program is a basic server and client messaging project devloped and tested in python 3.8.3. The client and server are fully contained
@@ -33,7 +34,7 @@ followed by their desgination which are under three catagories (defined in '[]' 
         * "Transmission Successfull..." : printed upon successfull client execution
         * "Received Message: <message>" : printed upon successfull client execution of download operation
 
-# ----------------------------------------------------------------------------------
+
 # Compiling Instructions:
 
 1. - open terminal in project folder location
@@ -47,8 +48,9 @@ followed by their desgination which are under three catagories (defined in '[]' 
      on server terminal) the client and server are communicating and the single previous operation
      ("-u" for upload and "-d" for download last message) will be completedc and the client will be terminated
 
-# ----------------------------------------------------------------------------------
+
 # Bugs / Limitations / Notes:
+
 - Note: if the user submits "" it will reset the saved mesage as "Empty Message"
 - Note: If running on personal machine (e.g: Windows) please make sure that Virus Protection does
   not block the text output file from updating. Not doing so may cause clinet side to hang (Issue occurs due to ransomware protection being enabled)
